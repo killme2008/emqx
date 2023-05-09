@@ -48,6 +48,7 @@ api_schemas(Method) ->
         api_ref(emqx_bridge_oracle, <<"oracle">>, Method),
         api_ref(emqx_bridge_iotdb, <<"iotdb">>, Method),
         api_ref(emqx_bridge_rabbitmq, <<"rabbitmq">>, Method)
+        api_ref(emqx_bridge_greptimedb, Method)
     ].
 
 schema_modules() ->
@@ -72,7 +73,8 @@ schema_modules() ->
         emqx_bridge_pulsar,
         emqx_bridge_oracle,
         emqx_bridge_iotdb,
-        emqx_bridge_rabbitmq
+        emqx_bridge_rabbitmq,
+        emqx_bridge_greptimedb
     ].
 
 examples(Method) ->
@@ -118,6 +120,7 @@ resource_type(pulsar_producer) -> emqx_bridge_pulsar_impl_producer;
 resource_type(oracle) -> emqx_oracle;
 resource_type(iotdb) -> emqx_bridge_iotdb_impl;
 resource_type(rabbitmq) -> emqx_bridge_rabbitmq_connector.
+resource_type(greptimedb) -> emqx_bridge_greptimedb_connector.
 
 fields(bridges) ->
     [
@@ -191,6 +194,14 @@ fields(bridges) ->
                 hoconsc:map(name, ref(emqx_bridge_iotdb, "config")),
                 #{
                     desc => <<"Apache IoTDB Bridge Config">>,
+                    required => false
+                }
+            )},
+        {greptimedb,
+            mk(
+                hoconsc:map(name, ref(emqx_bridge_greptimedb, "config")),
+                #{
+                    desc => <<"GreptimeDB Bridge Config">>,
                     required => false
                 }
             )}

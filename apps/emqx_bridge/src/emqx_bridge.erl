@@ -88,7 +88,8 @@
     T == sqlserver;
     T == pulsar_producer;
     T == oracle;
-    T == iotdb
+    T == iotdb;
+    T == greptimedb
 ).
 
 -define(ROOT_KEY, bridges).
