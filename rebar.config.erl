@@ -472,6 +472,7 @@ relx_apps_per_edition(ee) ->
         emqx_bridge_opents,
         emqx_bridge_clickhouse,
         emqx_bridge_dynamo,
+        emqx_bridge_greptimedb,
         emqx_bridge_hstreamdb,
         emqx_bridge_influxdb,
         emqx_bridge_iotdb,
