@@ -54,8 +54,8 @@ defmodule EMQXUmbrella.MixProject do
       {:jiffy, github: "emqx/jiffy", tag: "1.0.5", override: true},
       {:cowboy, github: "emqx/cowboy", tag: "2.9.2", override: true},
       {:esockd, github: "emqx/esockd", tag: "5.9.6", override: true},
-      {:rocksdb, github: "emqx/erlang-rocksdb", tag: "1.7.2-emqx-11", override: true},
-      {:ekka, github: "emqx/ekka", tag: "0.15.5", override: true},
+      {:rocksdb, github: "emqx/erlang-rocksdb", tag: "1.8.0-emqx-1", override: true},
+      {:ekka, github: "emqx/ekka", tag: "0.15.8", override: true},
       {:gen_rpc, github: "emqx/gen_rpc", tag: "2.8.1", override: true},
       {:grpc, github: "emqx/grpc-erl", tag: "0.6.8", override: true},
       {:minirest, github: "emqx/minirest", tag: "1.3.11", override: true},
@@ -72,7 +72,7 @@ defmodule EMQXUmbrella.MixProject do
       # in conflict by emqtt and hocon
       {:getopt, "1.0.2", override: true},
       {:snabbkaffe, github: "kafka4beam/snabbkaffe", tag: "1.0.8", override: true},
-      {:hocon, github: "emqx/hocon", tag: "0.39.11", override: true},
+      {:hocon, github: "emqx/hocon", tag: "0.39.14", override: true},
       {:emqx_http_lib, github: "emqx/emqx_http_lib", tag: "0.5.2", override: true},
       {:esasl, github: "emqx/esasl", tag: "0.2.0"},
       {:jose, github: "potatosalad/erlang-jose", tag: "1.11.2"},
@@ -91,8 +91,7 @@ defmodule EMQXUmbrella.MixProject do
       {:cowlib,
        github: "ninenines/cowlib", ref: "c6553f8308a2ca5dcd69d845f0a7d098c40c3363", override: true},
       # in conflict by cowboy_swagger and cowboy
-      {:ranch,
-       github: "emqx/ranch", ref: "de8ba2a00817c0a6eb1b8f20d6fb3e44e2c9a5aa", override: true},
+      {:ranch, github: "emqx/ranch", tag: "1.8.1-emqx", override: true},
       # in conflict by grpc and eetcd
       {:gpb, "4.19.7", override: true, runtime: false},
       {:hackney, github: "emqx/hackney", tag: "1.18.1-1", override: true},
@@ -172,6 +171,7 @@ defmodule EMQXUmbrella.MixProject do
       :emqx_bridge_cassandra,
       :emqx_bridge_opents,
       :emqx_bridge_dynamo,
+      :emqx_bridge_greptimedb,
       :emqx_bridge_hstreamdb,
       :emqx_bridge_influxdb,
       :emqx_bridge_iotdb,
@@ -190,13 +190,16 @@ defmodule EMQXUmbrella.MixProject do
       :emqx_bridge_rabbitmq,
       :emqx_bridge_clickhouse,
       :emqx_ft,
-      :emqx_s3
+      :emqx_s3,
+      :emqx_schema_registry,
+      :emqx_enterprise,
+      :emqx_bridge_kinesis
     ])
   end
 
   defp enterprise_deps(_profile_info = %{edition_type: :enterprise}) do
     [
-      {:hstreamdb_erl, github: "hstreamdb/hstreamdb_erl", tag: "0.2.5"},
+      {:hstreamdb_erl, github: "hstreamdb/hstreamdb_erl", tag: "0.3.1+v0.12.0"},
       {:influxdb, github: "emqx/influxdb-client-erl", tag: "1.1.11", override: true},
       {:wolff, github: "kafka4beam/wolff", tag: "1.7.6"},
       {:kafka_protocol, github: "kafka4beam/kafka_protocol", tag: "4.1.3", override: true},
@@ -206,6 +209,7 @@ defmodule EMQXUmbrella.MixProject do
       {:crc32cer, "0.1.8", override: true},
       {:supervisor3, "1.1.12", override: true},
       {:opentsdb, github: "emqx/opentsdb-client-erl", tag: "v0.5.1", override: true},
+      {:greptimedb, github: "GreptimeTeam/greptimedb-client-erl", tag: "v0.1.2", override: true},
       # The following two are dependencies of rabbit_common. They are needed here to
       # make mix not complain about conflicting versions
       {:thoas, github: "emqx/thoas", tag: "v1.0.0", override: true},
@@ -296,6 +300,7 @@ defmodule EMQXUmbrella.MixProject do
         [
           applications: applications(edition_type),
           skip_mode_validation_for: [
+            :emqx_mix,
             :emqx_gateway,
             :emqx_gateway_stomp,
             :emqx_gateway_mqttsn,
@@ -315,7 +320,10 @@ defmodule EMQXUmbrella.MixProject do
             :emqx_auto_subscribe,
             :emqx_slow_subs,
             :emqx_plugins,
-            :emqx_ft
+            :emqx_ft,
+            :emqx_s3,
+            :emqx_durable_storage,
+            :rabbit_common
           ],
           steps: steps,
           strip_beams: false
@@ -325,113 +333,54 @@ defmodule EMQXUmbrella.MixProject do
   end
 
   def applications(edition_type) do
-    [
-      crypto: :permanent,
-      public_key: :permanent,
-      asn1: :permanent,
-      syntax_tools: :permanent,
-      ssl: :permanent,
-      os_mon: :permanent,
-      inets: :permanent,
-      compiler: :permanent,
-      runtime_tools: :permanent,
-      redbug: :permanent,
-      xmerl: :permanent,
-      hocon: :load,
-      telemetry: :permanent,
-      emqx: :load,
-      emqx_conf: :load,
-      emqx_machine: :permanent
-    ] ++
-      if(enable_rocksdb?(),
-        do: [mnesia_rocksdb: :load],
-        else: []
-      ) ++
-      [
-        mnesia: :load,
-        ekka: :load,
-        esasl: :load,
-        observer_cli: :permanent,
-        tools: :permanent,
-        covertool: :load,
-        system_monitor: :load,
-        emqx_utils: :load,
-        emqx_http_lib: :permanent,
-        emqx_resource: :permanent,
-        emqx_connector: :permanent,
-        emqx_authn: :permanent,
-        emqx_authz: :permanent,
-        emqx_auto_subscribe: :permanent,
-        emqx_gateway: :permanent,
-        emqx_gateway_stomp: :permanent,
-        emqx_gateway_mqttsn: :permanent,
-        emqx_gateway_coap: :permanent,
-        emqx_gateway_lwm2m: :permanent,
-        emqx_gateway_exproto: :permanent,
-        emqx_exhook: :permanent,
-        emqx_bridge: :permanent,
-        emqx_bridge_mqtt: :permanent,
-        emqx_rule_engine: :permanent,
-        emqx_modules: :permanent,
-        emqx_management: :permanent,
-        emqx_dashboard: :permanent,
-        emqx_retainer: :permanent,
-        emqx_prometheus: :permanent,
-        emqx_psk: :permanent,
-        emqx_slow_subs: :permanent,
-        emqx_mongodb: :permanent,
-        emqx_redis: :permanent,
-        emqx_mysql: :permanent,
-        emqx_plugins: :permanent,
-        emqx_mix: :none
-      ] ++
-      if(enable_quicer?(), do: [quicer: :permanent], else: []) ++
-      if(enable_bcrypt?(), do: [bcrypt: :permanent], else: []) ++
-      if(enable_jq?(), do: [jq: :load], else: []) ++
-      if(is_app(:observer),
-        do: [observer: :load],
-        else: []
-      ) ++
-      if(edition_type == :enterprise,
-        do: [
-          emqx_license: :permanent,
-          emqx_enterprise: :load,
-          emqx_ee_connector: :permanent,
-          emqx_ee_bridge: :permanent,
-          emqx_bridge_kafka: :permanent,
-          emqx_bridge_pulsar: :permanent,
-          emqx_bridge_gcp_pubsub: :permanent,
-          emqx_bridge_cassandra: :permanent,
-          emqx_bridge_opents: :permanent,
-          emqx_bridge_clickhouse: :permanent,
-          emqx_bridge_dynamo: :permanent,
-          emqx_bridge_hstreamdb: :permanent,
-          emqx_bridge_influxdb: :permanent,
-          emqx_bridge_iotdb: :permanent,
-          emqx_bridge_matrix: :permanent,
-          emqx_bridge_mongodb: :permanent,
-          emqx_bridge_mysql: :permanent,
-          emqx_bridge_pgsql: :permanent,
-          emqx_bridge_redis: :permanent,
-          emqx_bridge_rocketmq: :permanent,
-          emqx_bridge_tdengine: :permanent,
-          emqx_bridge_timescale: :permanent,
-          emqx_bridge_sqlserver: :permanent,
-          emqx_oracle: :permanent,
-          emqx_bridge_oracle: :permanent,
-          emqx_bridge_rabbitmq: :permanent,
-          emqx_ee_schema_registry: :permanent,
-          emqx_eviction_agent: :permanent,
-          emqx_node_rebalance: :permanent,
-          emqx_ft: :permanent
-        ],
-        else: [
-          emqx_telemetry: :permanent
-        ]
-      )
+    {:ok,
+     [
+       %{
+         db_apps: db_apps,
+         system_apps: system_apps,
+         common_business_apps: common_business_apps,
+         ee_business_apps: ee_business_apps,
+         ce_business_apps: ce_business_apps
+       }
+     ]} = :file.consult("apps/emqx_machine/priv/reboot_lists.eterm")
+
+    edition_specific_apps =
+      if edition_type == :enterprise do
+        ee_business_apps
+      else
+        ce_business_apps
+      end
+
+    business_apps = common_business_apps ++ edition_specific_apps
+
+    excluded_apps = excluded_apps()
+
+    system_apps =
+      Enum.map(system_apps, fn app ->
+        if is_atom(app), do: {app, :permanent}, else: app
+      end)
+
+    db_apps = Enum.map(db_apps, &{&1, :load})
+    business_apps = Enum.map(business_apps, &{&1, :load})
+
+    [system_apps, db_apps, [emqx_machine: :permanent], business_apps]
+    |> List.flatten()
+    |> Keyword.reject(fn {app, _type} -> app in excluded_apps end)
   end
 
-  defp is_app(name) do
+  defp excluded_apps() do
+    %{
+      mnesia_rocksdb: enable_rocksdb?(),
+      quicer: enable_quicer?(),
+      bcrypt: enable_bcrypt?(),
+      jq: enable_jq?(),
+      observer: is_app?(:observer)
+    }
+    |> Enum.reject(&elem(&1, 1))
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  defp is_app?(name) do
     case Application.load(name) do
       :ok ->
         true
@@ -446,12 +395,31 @@ defmodule EMQXUmbrella.MixProject do
 
   def check_profile!() do
     valid_envs = [
-      :dev,
       :emqx,
       :"emqx-pkg",
       :"emqx-enterprise",
       :"emqx-enterprise-pkg"
     ]
+
+    if Mix.env() == :dev do
+      env_profile = System.get_env("PROFILE")
+
+      if env_profile do
+        # copy from PROFILE env var
+        System.get_env("PROFILE")
+        |> String.to_atom()
+        |> Mix.env()
+      else
+        IO.puts(
+          IO.ANSI.format([
+            :yellow,
+            "Warning: env var PROFILE is unset; defaulting to emqx"
+          ])
+        )
+
+        Mix.env(:emqx)
+      end
+    end
 
     if Mix.env() not in valid_envs do
       formatted_envs =
@@ -823,7 +791,7 @@ defmodule EMQXUmbrella.MixProject do
 
   defp jq_dep() do
     if enable_jq?(),
-      do: [{:jq, github: "emqx/jq", tag: "v0.3.9", override: true}],
+      do: [{:jq, github: "emqx/jq", tag: "v0.3.10", override: true}],
       else: []
   end
 

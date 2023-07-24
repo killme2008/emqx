@@ -2,7 +2,7 @@
 {application, emqx, [
     {id, "emqx"},
     {description, "EMQX Core"},
-    {vsn, "5.1.1"},
+    {vsn, "5.1.2"},
     {modules, []},
     {registered, []},
     {applications, [
@@ -16,7 +16,8 @@
         sasl,
         os_mon,
         lc,
-        hocon
+        hocon,
+        emqx_durable_storage
     ]},
     {mod, {emqx_app, []}},
     {env, []},

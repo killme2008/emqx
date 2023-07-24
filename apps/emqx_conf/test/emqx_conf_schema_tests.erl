@@ -25,6 +25,8 @@
                 name = \"emqx1@127.0.0.1\"
                 cookie = \"emqxsecretcookie\"
                 data_dir = \"data\"
+                max_ports = 2048
+                process_limit = 10240
              }
              cluster {
                 name = emqxcl
@@ -42,6 +44,12 @@ array_nodes_test() ->
             ConfFile = to_bin(?BASE_CONF, [Nodes, Nodes]),
             {ok, Conf} = hocon:binary(ConfFile, #{format => richmap}),
             ConfList = hocon_tconf:generate(emqx_conf_schema, Conf),
+            VMArgs = proplists:get_value(vm_args, ConfList),
+            ProcLimit = proplists:get_value('+P', VMArgs),
+            MaxPort = proplists:get_value('+Q', VMArgs),
+            ?assertEqual(2048, MaxPort),
+            ?assertEqual(MaxPort * 2, ProcLimit),
+
             ClusterDiscovery = proplists:get_value(
                 cluster_discovery, proplists:get_value(ekka, ConfList)
             ),
@@ -363,14 +371,14 @@ listeners_test() ->
     ?assertMatch(
         #{
             <<"bind">> := {{0, 0, 0, 0}, 1883},
-            <<"enabled">> := true
+            <<"enable">> := true
         },
         Tcp
     ),
     ?assertMatch(
         #{
             <<"bind">> := {{0, 0, 0, 0}, 8083},
-            <<"enabled">> := true,
+            <<"enable">> := true,
             <<"websocket">> := #{<<"mqtt_path">> := "/mqtt"}
         },
         Ws

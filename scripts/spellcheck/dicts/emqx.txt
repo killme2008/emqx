@@ -29,6 +29,7 @@ EPMD
 ERL
 ETS
 FIXME
+GreptimeDB
 GCM
 HMAC
 HOCON
@@ -270,6 +271,10 @@ hstream
 hstreamDB
 hstream
 hstreamdb
+hrecord
+hRecord
+Hrecord
+HRecord
 SASL
 GSSAPI
 keytab

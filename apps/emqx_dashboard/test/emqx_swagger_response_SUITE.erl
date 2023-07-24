@@ -129,7 +129,7 @@ t_error(_Config) ->
                 }
             }
     },
-    {OperationId, Spec, Refs} = emqx_dashboard_swagger:parse_spec_ref(?MODULE, Path, #{}),
+    {OperationId, Spec, Refs, #{}} = emqx_dashboard_swagger:parse_spec_ref(?MODULE, Path, #{}),
     ?assertEqual(test, OperationId),
     Response = maps:get(responses, maps:get(get, Spec)),
     ?assertEqual(Error400, maps:get(<<"400">>, Response)),
@@ -375,7 +375,7 @@ t_complicated_type(_Config) ->
                 }
         }
     },
-    {OperationId, Spec, Refs} = emqx_dashboard_swagger:parse_spec_ref(?MODULE, Path, #{}),
+    {OperationId, Spec, Refs, #{}} = emqx_dashboard_swagger:parse_spec_ref(?MODULE, Path, #{}),
     ?assertEqual(test, OperationId),
     Response = maps:get(responses, maps:get(post, Spec)),
     ?assertEqual(Object, maps:get(<<"200">>, Response)),
@@ -647,8 +647,9 @@ schema("/ref/complex_type") ->
                     {no_neg_integer, hoconsc:mk(non_neg_integer(), #{})},
                     {url, hoconsc:mk(url(), #{})},
                     {server, hoconsc:mk(emqx_schema:ip_port(), #{})},
-                    {connect_timeout, hoconsc:mk(emqx_connector_http:connect_timeout(), #{})},
-                    {pool_type, hoconsc:mk(emqx_connector_http:pool_type(), #{})},
+                    {connect_timeout,
+                        hoconsc:mk(emqx_bridge_http_connector:connect_timeout(), #{})},
+                    {pool_type, hoconsc:mk(emqx_bridge_http_connector:pool_type(), #{})},
                     {timeout, hoconsc:mk(timeout(), #{})},
                     {bytesize, hoconsc:mk(emqx_schema:bytesize(), #{})},
                     {wordsize, hoconsc:mk(emqx_schema:wordsize(), #{})},
@@ -665,7 +666,7 @@ schema("/fields/sub") ->
     to_schema(hoconsc:ref(sub_fields)).
 
 validate(Path, ExpectObject, ExpectRefs) ->
-    {OperationId, Spec, Refs} = emqx_dashboard_swagger:parse_spec_ref(?MODULE, Path, #{}),
+    {OperationId, Spec, Refs, #{}} = emqx_dashboard_swagger:parse_spec_ref(?MODULE, Path, #{}),
     ?assertEqual(test, OperationId),
     Response = maps:get(responses, maps:get(post, Spec)),
     ?assertEqual(ExpectObject, maps:get(<<"200">>, Response)),

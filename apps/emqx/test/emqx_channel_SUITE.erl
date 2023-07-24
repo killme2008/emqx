@@ -584,7 +584,7 @@ t_handle_deliver(_) ->
 
 t_handle_deliver_nl(_) ->
     ClientInfo = clientinfo(#{clientid => <<"clientid">>}),
-    Session = session(#{subscriptions => #{<<"t1">> => #{nl => 1}}}),
+    Session = session(ClientInfo, #{subscriptions => #{<<"t1">> => #{nl => 1}}}),
     Channel = channel(#{clientinfo => ClientInfo, session => Session}),
     Msg = emqx_message:make(<<"clientid">>, ?QOS_1, <<"t1">>, <<"qos1">>),
     NMsg = emqx_message:set_flag(nl, Msg),
@@ -908,7 +908,8 @@ t_check_pub_alias(_) ->
 t_check_sub_authzs(_) ->
     emqx_config:put_zone_conf(default, [authorization, enable], true),
     TopicFilter = {<<"t">>, ?DEFAULT_SUBOPTS},
-    [{TopicFilter, 0}] = emqx_channel:check_sub_authzs([TopicFilter], channel()).
+    Subscribe = ?SUBSCRIBE_PACKET(1, [TopicFilter]),
+    [{TopicFilter, 0}] = emqx_channel:check_sub_authzs(Subscribe, [TopicFilter], channel()).
 
 t_enrich_connack_caps(_) ->
     ok = meck:new(emqx_mqtt_caps, [passthrough, no_history]),
@@ -1070,11 +1071,14 @@ connpkt(Props) ->
         password = <<"passwd">>
     }.
 
-session() -> session(#{}).
-session(InitFields) when is_map(InitFields) ->
+session() -> session(#{zone => default, clientid => <<"fake-test">>}, #{}).
+session(InitFields) -> session(#{zone => default, clientid => <<"fake-test">>}, InitFields).
+session(ClientInfo, InitFields) when is_map(InitFields) ->
     Conf = emqx_cm:get_session_confs(
-        #{zone => default, clientid => <<"fake-test">>}, #{
-            receive_maximum => 0, expiry_interval => 0
+        ClientInfo,
+        #{
+            receive_maximum => 0,
+            expiry_interval => 0
         }
     ),
     Session = emqx_session:init(Conf),

@@ -30,6 +30,7 @@
 -include_lib("hocon/include/hoconsc.hrl").
 -include_lib("logger.hrl").
 
+-define(MAX_INT_MQTT_PACKET_SIZE, 268435456).
 -define(MAX_INT_TIMEOUT_MS, 4294967295).
 %% floor(?MAX_INT_TIMEOUT_MS / 1000).
 -define(MAX_INT_TIMEOUT_S, 4294967).
@@ -45,6 +46,7 @@
 -type timeout_duration_s() :: 0..?MAX_INT_TIMEOUT_S.
 -type timeout_duration_ms() :: 0..?MAX_INT_TIMEOUT_MS.
 -type bytesize() :: integer().
+-type mqtt_max_packet_size() :: 1..?MAX_INT_MQTT_PACKET_SIZE.
 -type wordsize() :: bytesize().
 -type percent() :: float().
 -type file() :: string().
@@ -71,6 +73,7 @@
 -typerefl_from_string({timeout_duration_s/0, emqx_schema, to_timeout_duration_s}).
 -typerefl_from_string({timeout_duration_ms/0, emqx_schema, to_timeout_duration_ms}).
 -typerefl_from_string({bytesize/0, emqx_schema, to_bytesize}).
+-typerefl_from_string({mqtt_max_packet_size/0, emqx_schema, to_bytesize}).
 -typerefl_from_string({wordsize/0, emqx_schema, to_wordsize}).
 -typerefl_from_string({percent/0, emqx_schema, to_percent}).
 -typerefl_from_string({comma_separated_list/0, emqx_schema, to_comma_separated_list}).
@@ -151,6 +154,7 @@
     timeout_duration_s/0,
     timeout_duration_ms/0,
     bytesize/0,
+    mqtt_max_packet_size/0,
     wordsize/0,
     percent/0,
     file/0,
@@ -313,6 +317,14 @@ fields("persistent_session_store") ->
                     %% TODO(5.2): change field name to 'enable' and keep 'enabled' as an alias
                     aliases => [enable],
                     desc => ?DESC(persistent_session_store_enabled)
+                }
+            )},
+        {"ds",
+            sc(
+                boolean(),
+                #{
+                    default => false,
+                    importance => ?IMPORTANCE_HIDDEN
                 }
             )},
         {"on_disc",
@@ -1746,13 +1758,12 @@ mqtt_listener(Bind) ->
 
 base_listener(Bind) ->
     [
-        {"enabled",
+        {"enable",
             sc(
                 boolean(),
                 #{
                     default => true,
-                    %% TODO(5.2): change field name to 'enable' and keep 'enabled' as an alias
-                    aliases => [enable],
+                    aliases => [enabled],
                     desc => ?DESC(fields_listener_enabled)
                 }
             )},
@@ -1833,9 +1844,7 @@ desc("stats") ->
 desc("authorization") ->
     "Settings for client authorization.";
 desc("mqtt") ->
-    "Global MQTT configuration.<br/>"
-    "The configs here work as default values which can be overridden\n"
-    "in <code>zone</code> configs";
+    "Global MQTT configuration.";
 desc("authz_cache") ->
     "Settings for the authorization cache.";
 desc("zone") ->
@@ -2493,7 +2502,11 @@ to_integer(Str) ->
     end.
 
 to_percent(Str) ->
-    {ok, hocon_postprocess:percent(Str)}.
+    Percent = hocon_postprocess:percent(Str),
+    case is_number(Percent) andalso Percent >= 0.0 andalso Percent =< 1.0 of
+        true -> {ok, Percent};
+        false -> {error, Str}
+    end.
 
 to_comma_separated_list(Str) ->
     {ok, string:tokens(Str, ", ")}.
@@ -2721,15 +2734,17 @@ check_cpu_watermark(Conf) ->
     check_watermark("sysmon.os.cpu_low_watermark", "sysmon.os.cpu_high_watermark", Conf).
 
 check_watermark(LowKey, HighKey, Conf) ->
-    case hocon_maps:get(LowKey, Conf) of
-        undefined ->
+    case to_percent(hocon_maps:get(LowKey, Conf)) of
+        {error, undefined} ->
             true;
-        Low ->
-            High = hocon_maps:get(HighKey, Conf),
-            case Low < High of
-                true -> true;
-                false -> {bad_watermark, #{LowKey => Low, HighKey => High}}
-            end
+        {ok, Low} ->
+            case to_percent(hocon_maps:get(HighKey, Conf)) of
+                {ok, High} when High > Low -> true;
+                {ok, High} -> {bad_watermark, #{LowKey => Low, HighKey => High}};
+                {error, HighVal} -> {bad_watermark, #{HighKey => HighVal}}
+            end;
+        {error, Low} ->
+            {bad_watermark, #{LowKey => Low}}
     end.
 
 str(A) when is_atom(A) ->
@@ -3357,7 +3372,7 @@ mqtt_general() ->
             )},
         {"max_packet_size",
             sc(
-                bytesize(),
+                mqtt_max_packet_size(),
                 #{
                     default => <<"1MB">>,
                     desc => ?DESC(mqtt_max_packet_size)

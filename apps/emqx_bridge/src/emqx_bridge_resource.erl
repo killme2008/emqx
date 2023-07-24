@@ -62,14 +62,14 @@
 -if(?EMQX_RELEASE_EDITION == ee).
 bridge_to_resource_type(<<"mqtt">>) -> emqx_bridge_mqtt_connector;
 bridge_to_resource_type(mqtt) -> emqx_bridge_mqtt_connector;
-bridge_to_resource_type(<<"webhook">>) -> emqx_connector_http;
-bridge_to_resource_type(webhook) -> emqx_connector_http;
-bridge_to_resource_type(BridgeType) -> emqx_ee_bridge:resource_type(BridgeType).
+bridge_to_resource_type(<<"webhook">>) -> emqx_bridge_http_connector;
+bridge_to_resource_type(webhook) -> emqx_bridge_http_connector;
+bridge_to_resource_type(BridgeType) -> emqx_bridge_enterprise:resource_type(BridgeType).
 -else.
 bridge_to_resource_type(<<"mqtt">>) -> emqx_bridge_mqtt_connector;
 bridge_to_resource_type(mqtt) -> emqx_bridge_mqtt_connector;
-bridge_to_resource_type(<<"webhook">>) -> emqx_connector_http;
-bridge_to_resource_type(webhook) -> emqx_connector_http.
+bridge_to_resource_type(<<"webhook">>) -> emqx_bridge_http_connector;
+bridge_to_resource_type(webhook) -> emqx_bridge_http_connector.
 -endif.
 
 resource_id(BridgeId) when is_binary(BridgeId) ->
@@ -373,6 +373,8 @@ parse_confs(Type, Name, Conf) when ?IS_INGRESS_BRIDGE(Type) ->
 parse_confs(<<"kafka">> = _Type, Name, Conf) ->
     Conf#{bridge_name => Name};
 parse_confs(<<"pulsar_producer">> = _Type, Name, Conf) ->
+    Conf#{bridge_name => Name};
+parse_confs(<<"kinesis_producer">> = _Type, Name, Conf) ->
     Conf#{bridge_name => Name};
 parse_confs(_Type, _Name, Conf) ->
     Conf.

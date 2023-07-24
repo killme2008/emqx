@@ -14,7 +14,7 @@
 -import(emqx_common_test_helpers, [on_exit/1]).
 
 -define(BRIDGE_TYPE_BIN, <<"pulsar_producer">>).
--define(APPS, [emqx_bridge, emqx_resource, emqx_rule_engine, emqx_bridge_pulsar]).
+-define(APPS, [emqx_resource, emqx_bridge, emqx_rule_engine, emqx_bridge_pulsar]).
 -define(RULE_TOPIC, "mqtt/rule").
 -define(RULE_TOPIC_BIN, <<?RULE_TOPIC>>).
 
@@ -122,9 +122,11 @@ common_init_per_group() ->
     ProxyHost = os:getenv("PROXY_HOST", "toxiproxy"),
     ProxyPort = list_to_integer(os:getenv("PROXY_PORT", "8474")),
     emqx_common_test_helpers:reset_proxy(ProxyHost, ProxyPort),
-    application:load(emqx_bridge),
+    %% Ensure enterprise bridge module is loaded
     ok = emqx_common_test_helpers:start_apps([emqx_conf]),
-    ok = emqx_connector_test_helpers:start_apps(?APPS),
+    ok = emqx_common_test_helpers:start_apps(?APPS),
+    {ok, _} = application:ensure_all_started(pulsar),
+    _ = emqx_bridge_enterprise:module_info(),
     {ok, _} = application:ensure_all_started(emqx_connector),
     emqx_mgmt_api_test_util:init_suite(),
     UniqueNum = integer_to_binary(erlang:unique_integer()),
@@ -518,7 +520,7 @@ cluster(Config) ->
     Cluster = emqx_common_test_helpers:emqx_cluster(
         [core, core],
         [
-            {apps, [emqx_conf, emqx_bridge, emqx_rule_engine, emqx_bridge_pulsar]},
+            {apps, [emqx_conf] ++ ?APPS ++ [pulsar]},
             {listener_ports, []},
             {peer_mod, PeerModule},
             {priv_data_dir, PrivDataDir},
@@ -545,6 +547,7 @@ start_cluster(Cluster) ->
             emqx_common_test_helpers:start_slave(Name, Opts)
          || {Name, Opts} <- Cluster
         ],
+    NumNodes = length(Nodes),
     on_exit(fun() ->
         emqx_utils:pmap(
             fun(N) ->
@@ -554,6 +557,11 @@ start_cluster(Cluster) ->
             Nodes
         )
     end),
+    {ok, _} = snabbkaffe:block_until(
+        %% -1 because only those that join the first node will emit the event.
+        ?match_n_events(NumNodes - 1, #{?snk_kind := emqx_machine_boot_apps_started}),
+        30_000
+    ),
     Nodes.
 
 kill_resource_managers() ->
@@ -1097,6 +1105,7 @@ do_t_cluster(Config) ->
             ),
             {ok, _} = erpc:call(N1, fun() -> create_bridge(Config) end),
             {ok, _} = snabbkaffe:receive_events(SRef1),
+            erpc:multicall(Nodes, fun wait_until_producer_connected/0),
             {ok, _} = snabbkaffe:block_until(
                 ?match_n_events(
                     NumNodes,
@@ -1118,7 +1127,6 @@ do_t_cluster(Config) ->
                 end,
                 Nodes
             ),
-            erpc:multicall(Nodes, fun wait_until_producer_connected/0),
             Message0 = emqx_message:make(ClientId, QoS, MQTTTopic, Payload),
             ?tp(publishing_message, #{}),
             erpc:call(N2, emqx, publish, [Message0]),

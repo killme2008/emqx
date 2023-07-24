@@ -175,14 +175,14 @@ bridge_info_examples(Method) ->
                 value => info_example(mqtt, Method)
             }
         },
-        ee_bridge_examples(Method)
+        emqx_enterprise_bridge_examples(Method)
     ).
 
 -if(?EMQX_RELEASE_EDITION == ee).
-ee_bridge_examples(Method) ->
-    emqx_ee_bridge:examples(Method).
+emqx_enterprise_bridge_examples(Method) ->
+    emqx_bridge_enterprise:examples(Method).
 -else.
-ee_bridge_examples(_Method) -> #{}.
+emqx_enterprise_bridge_examples(_Method) -> #{}.
 -endif.
 
 info_example(Type, Method) ->
@@ -546,7 +546,12 @@ schema("/bridges_probe") ->
                     ?NO_CONTENT;
                 {error, #{kind := validation_error} = Reason} ->
                     ?BAD_REQUEST('TEST_FAILED', map_to_json(Reason));
-                {error, Reason} when not is_tuple(Reason); element(1, Reason) =/= 'exit' ->
+                {error, Reason0} when not is_tuple(Reason0); element(1, Reason0) =/= 'exit' ->
+                    Reason =
+                        case Reason0 of
+                            {unhealthy_target, Message} -> Message;
+                            _ -> Reason0
+                        end,
                     ?BAD_REQUEST('TEST_FAILED', Reason)
             end;
         BadRequest ->
@@ -983,11 +988,10 @@ call_operation(NodeOrAll, OperFunc, Args = [_Nodes, BridgeType, BridgeName]) ->
             %% still on an older bpapi version that doesn't support it.
             maybe_try_restart(NodeOrAll, OperFunc, Args);
         {error, timeout} ->
-            ?SERVICE_UNAVAILABLE(<<"Request timeout">>);
+            ?BAD_REQUEST(<<"Request timeout">>);
         {error, {start_pool_failed, Name, Reason}} ->
-            ?SERVICE_UNAVAILABLE(
-                bin(io_lib:format("Failed to start ~p pool for reason ~p", [Name, Reason]))
-            );
+            Msg = bin(io_lib:format("Failed to start ~p pool for reason ~p", [Name, Reason])),
+            ?BAD_REQUEST(Msg);
         {error, not_found} ->
             BridgeId = emqx_bridge_resource:bridge_id(BridgeType, BridgeName),
             ?SLOG(warning, #{

@@ -83,8 +83,9 @@ common_init_per_group() ->
     ProxyHost = os:getenv("PROXY_HOST", "toxiproxy"),
     ProxyPort = list_to_integer(os:getenv("PROXY_PORT", "8474")),
     emqx_common_test_helpers:reset_proxy(ProxyHost, ProxyPort),
-    application:load(emqx_bridge),
-    ok = emqx_common_test_helpers:start_apps([emqx_conf]),
+    %% Ensure enterprise bridge module is loaded
+    ok = emqx_common_test_helpers:start_apps([emqx_conf, emqx_bridge]),
+    _ = emqx_bridge_enterprise:module_info(),
     ok = emqx_connector_test_helpers:start_apps(?APPS),
     {ok, _} = application:ensure_all_started(emqx_connector),
     emqx_mgmt_api_test_util:init_suite(),
@@ -160,6 +161,9 @@ delete_all_bridges() ->
 %%------------------------------------------------------------------------------
 sql_insert_template_for_bridge() ->
     "INSERT INTO mqtt_test(topic, msgid, payload, retain) VALUES (${topic}, ${id}, ${payload}, ${retain})".
+
+sql_insert_template_with_nested_token_for_bridge() ->
+    "INSERT INTO mqtt_test(topic, msgid, payload, retain) VALUES (${topic}, ${id}, ${payload.msg}, ${retain})".
 
 sql_create_table() ->
     "CREATE TABLE mqtt_test (topic VARCHAR2(255), msgid VARCHAR2(64), payload NCLOB, retain NUMBER(1))".
@@ -531,6 +535,23 @@ t_start_stop(Config) ->
         end
     ),
     ok.
+
+t_probe_with_nested_tokens(Config) ->
+    ResourceId = resource_id(Config),
+    reset_table(Config),
+    ?assertMatch(
+        {ok, _},
+        create_bridge(Config, #{
+            <<"sql">> => sql_insert_template_with_nested_token_for_bridge()
+        })
+    ),
+    %% Since the connection process is async, we give it some time to
+    %% stabilize and avoid flakiness.
+    ?retry(
+        _Sleep = 1_000,
+        _Attempts = 20,
+        ?assertEqual({ok, connected}, emqx_resource_manager:health_check(ResourceId))
+    ).
 
 t_on_get_status(Config) ->
     ProxyPort = ?config(proxy_port, Config),
